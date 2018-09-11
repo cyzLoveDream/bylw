@@ -12,8 +12,7 @@ class Tokenizer(object):
 	"""
 	将语料序列化
 	"""
-	def __init__(self,lower=False,max_seq_len=None,max_aspect_len=None,char_level=None):
-		self.lower = lower
+	def __init__(self,max_seq_len=None,max_aspect_len=None,char_level=None):
 		self.max_seq_len = max_seq_len
 		self.max_aspect_len = max_aspect_len
 		self.char_level = char_level
@@ -27,8 +26,6 @@ class Tokenizer(object):
 		:param text:
 		:return:
 		"""
-		if self.lower:
-			text = text.lower()
 		words = text.split()
 		for w in words:
 			if w not in self.word2ix:
@@ -99,8 +96,8 @@ class ABSADatasetReader:
 		all_data = []
 		for i in range(0, len(lines), 3):
 			# lines[i] = text_to_wordlist(lines[i],remove_stop_words=False,stem_words=False)
-			text_left,_, text_right = [s.lower().strip() for s in lines[i].partition("$T$")]
-			aspect = lines[i+1].lower().strip()
+			text_left,_, text_right = [s.strip() for s in lines[i].partition("$T$")]
+			aspect = lines[i+1].strip()
 			polarity = lines[i+2].strip()
 			text_raw_indices = tokenizer.text_to_sequence(text_left + " " + aspect + " " + text_right)
 			text_raw_without_aspect_indices = tokenizer.text_to_sequence(text_left + " " + text_right)
@@ -109,7 +106,7 @@ class ABSADatasetReader:
 			text_right_indices = tokenizer.text_to_sequence(text_right)
 			text_right_with_aspect_indices = tokenizer.text_to_sequence(" " + aspect + " " + text_right)
 			aspect_indices = tokenizer.text_to_sequence(aspect)
-			polarity = int(polarity) + 1
+			polarity = int(polarity)
 			data = {
 				"text_raw_indices":text_raw_indices,
 				"text_raw_without_aspect_indices":text_raw_without_aspect_indices,
@@ -138,7 +135,7 @@ class ABSADatasetReader:
 			}
 		text = ABSADatasetReader.__read_text__(fname[dataset]["train"])
 		tokenizer = Tokenizer(max_seq_len = max_seq_len)
-		tokenizer.fit_on_text(text.lower())
+		tokenizer.fit_on_text(text)
 		self.embedding_matrix = build_embedding_matrix(tokenizer.word2ix, embed_dim,dataset)
 		if dataset in ["my-laptop","my-restaurants"]:
 			self.train_data = ABSADataset(ABSADatasetReader.__read_data__(fname[dataset]["train"],tokenizer))
