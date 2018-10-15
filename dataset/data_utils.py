@@ -5,7 +5,6 @@ import numpy as np
 import pickle
 from torch.utils.data import Dataset
 from utils.utils import build_embedding_matrix
-from utils.utils import text_to_wordlist
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '2'  # 只显示 warning 和 Error
 
 class Tokenizer(object):
