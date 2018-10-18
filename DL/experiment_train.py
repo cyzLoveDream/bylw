@@ -38,38 +38,21 @@ torch.backends.cudnn.deterministic = True
 class Instrutor:
     def __init__(self,opt):
         self.opt = opt
-        # print('> training arguments: ')
-        # for arg in vars(opt):
-        #     print("{0}:{1}".format(arg,getattr(opt,arg)))
-        absa_dataset = ABSADatasetReader(dataset=opt.dataset,embed_dim=opt.embed_dim,max_seq_len=opt.max_seq_len)
-        if opt.dataset in  ["my-laptop","my-restaurant"]:
-            self.train_data_loader = DataLoader(dataset=absa_dataset.train_data,batch_size=opt.batch_size,shuffle=True)
-            self.test_data_loader = DataLoader(dataset=absa_dataset.test_data,batch_size=len(absa_dataset.test_data))
-        else:
-            self.train_data_loader = DataLoader(dataset=absa_dataset.train_data,batch_size=opt.batch_size,shuffle=True)
-            self.valid_data_loader = DataLoader(dataset=absa_dataset.valid_data,batch_size=len(absa_dataset.valid_data))
-            self.test_data_loader = DataLoader(dataset=absa_dataset.test_data,batch_size=len(absa_dataset.test_data))
+        print('> training arguments: ')
+        for arg in vars(opt):
+            print("{0}:{1}".format(arg,getattr(opt,arg)))
+        absa_dataset = ABSADatasetReader(dataset=opt.dataset,embed_dim=opt.embed_dim,max_seq_len=opt.max_seq_len,w2v=opt.w2v)
+        self.train_data_loader = DataLoader(dataset=absa_dataset.train_data,batch_size=opt.batch_size,shuffle=True)
+        self.valid_data_loader = DataLoader(dataset=absa_dataset.valid_data,batch_size=len(absa_dataset.valid_data))
+        self.test_data_loader = DataLoader(dataset=absa_dataset.test_data,batch_size=len(absa_dataset.test_data))
         self.model = opt.model_classes(absa_dataset.embedding_matrix, opt).to(device)
         # self.reset_parameters()
-
-    def reset_parameters(self):
-        n_trainable_params,n_nontrainable_params = 0,0
-        for p in self.model.parameters():
-            n_params = torch.prod(torch.tensor(p.shape))
-            if p.requires_grad:
-                n_trainable_params += n_params
-                if len(p.shape) > 1:
-                    self.opt.initializer(p)
-            else:
-                n_nontrainable_params += n_params
-        # print("n_trainable_params: {0}, n_nontrainable_params: {1}".format(n_trainable_params,n_nontrainable_params))
 
     def val(self,model,dataloader):
         """
         计算模型在验证集上的准确率等信息
         """
         model.eval()
-
         n_test_correct,n_test_total = [],[]
         for t_batch,t_sample_batched in enumerate(dataloader):
             t_inputs = [t_sample_batched[col].to(device) for col in self.opt.inputs_cols]
@@ -79,9 +62,10 @@ class Instrutor:
             n_test_total.extend(t_targets.data.tolist())
         test_acc = accuracy_score(np.array(n_test_total),np.array(n_test_correct))
         test_f1 = f1_score(np.array(n_test_total), np.array(n_test_correct),average="macro")
-        # test_acc = n_test_correct / n_test_total
+        test_precise = precision_score(np.array(n_test_total),np.array(n_test_correct),average="macro")
+        test_recall = recall_score(np.array(n_test_total),np.array(n_test_correct),average="macro")
         model.train()
-        return test_acc,test_f1
+        return test_acc,test_f1, test_precise, test_recall
 
     def run(self):
         # Loss and optimizer
@@ -98,8 +82,11 @@ class Instrutor:
         train_cur = 0
         test_cur= 0
         val_cur = 0
-        test_f1_cur = 0
+        test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur = 0,0,0,0
+        print("begin train....")
+        epoch_count = 0
         for epoch in range(self.opt.num_epoch):
+            epoch_count += 1
             loss_meter.reset()
             for i_batch,sample_batched in enumerate(self.train_data_loader):
                 global_step += 1
@@ -107,68 +94,30 @@ class Instrutor:
                 inputs = [sample_batched[col].to(device) for col in self.opt.inputs_cols]
                 targets = sample_batched["polarity"].to(device)
                 outputs = self.model(inputs)
-
                 loss = criterion(outputs,targets)
                 loss.backward()
                 optimizer.step()
-            if self.opt.dataset not in ["my-laptop","my-restaurant"]:
-                val_acc,_ = self.val(self.model,self.valid_data_loader)
-                train_acc,_ = self.val(self.model,self.train_data_loader)
-                test_acc,_ = self.val(self.model,self.test_data_loader)
-                # early stop in 10
-                if val_acc > curMax:
-                    curMax = val_acc
-                    val_cur = val_acc
-                    train_cur = train_acc
-                    test_cur = test_acc
-                    count = 0
-                    # model_name = self.model.save()
-                else:
-                    count += 1
-                if count >= 10:
-                    break
+            # early stop in 10
+            val_acc,_,_,_ = self.val(self.model,self.valid_data_loader)
+            train_acc,_,_,_ = self.val(self.model,self.train_data_loader)
+            if epoch_count % 1 == 0:
+                test_acc,test_f1, test_precise, test_recall = self.val(self.model,self.test_data_loader)
+                print("the train acc is {0}, the val acc is {1}, the test acc is {2}".format(train_acc,val_acc,test_acc))
+            if val_acc > curMax:
+                curMax = val_acc
+                train_cur, val_cur = train_acc, val_acc
+                # test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur = test_f1, test_precise, test_recall,test_acc
+                count = 0
+                # model_name = self.model.save()
             else:
-                train_acc,_ = self.val(self.model,self.train_data_loader)
-                test_acc,test_f1 = self.val(self.model,self.test_data_loader)
-                # print(train_acc, test_acc)
-                if test_acc > curMax:
-                    test_f1_cur = test_f1
-                    curMax = test_acc
-                    train_cur = train_acc
-                    test_cur = test_acc
-                    count = 0
-                    # model_name = self.model.save()
-                else:
-                    count += 1
-                if count >= 10:
-                    break
-                # print(train_acc,test_acc)
-        if self.opt.dataset not in ["my-laptop","my-restaurant"]:
-            del self.model
-            print("the train acc is {0}, the val acc is {1}, the test acc is {2}".format(train_cur,curMax,test_cur))
-            return train_cur, val_cur, test_cur
-        else:
-            del self.model
-            del self.opt
-            gc.collect()
-            return train_cur, test_cur, test_f1_cur
-        # delattr(self.opt, "model_classes")
-        # self.model.load_state_dict(t.load(model_name))
-        # train_acc = self.val(self.model,self.train_data_loader)
-        # val_acc = self.val(self.model,self.valid_data_loader)
-        # test_acc = self.val(self.model,self.test_data_loader)
-        # del self.model
-        # print("the train cost time is: ",(time.time() - now))
-
-        # count = 0
-        # if loss_meter.value()[0] > previous_loss:
-        # 	count += 1
-        # 	if count % 5 == 0:
-        # 		lr = self.opt.learning_rate * self.opt.lr_decay
-        # 		for param_group in optimizer.param_groups:
-        # 			param_group['lr'] = lr
-        # previous_loss = loss_meter.value()[0]
-        # print("the max acc is:{0} the epoch is {1} ".format(max(test_acc_list),test_acc_list.index(max(test_acc_list))))
+                count += 1
+            if count >= 10:
+                break
+        del self.model
+        del self.opt
+        gc.collect()
+        print("the train acc is {0}, the val acc is {1}, the test acc is {2}".format(train_cur,curMax,test_cur))
+        return test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur
 
 def obejective(params):
     model_classes = {
@@ -240,26 +189,17 @@ def tiaocan():
             # Write the headers to the file
             writer.writerow(['loss','test-acc','test-f1','params'])
             of_connection.close()
-            params = {
-                "model_name": "td_lstm",
-                "dataset": "my-laptop",
-                "initializer": hp.choice("initializer",["xavier_normal_","xavier_uniform_","orthogonal_"]),
-                "learning_rate": hp.loguniform("learning_rate", np.log(0.001), np.log(0.1)),
-                "num_epoch": 100,
-                "batch_size": hp.quniform("batch_size",16,128,2) ,
-                "embed_dim": 300,
-                "hidden_dim": hp.quniform("hidden_dim",100,500,10),
-                "max_seq_len": hp.quniform("max_seq_len",10,80,1),
-                "polarity_dim": 3,
-                "hops": 3,
-                "plot_every": 50,
-                "seed": 1024,
-                "weight_decay": hp.loguniform("weight_decay", np.log(0.001), np.log(0.1)),
-                "fillter": hp.quniform("fillter",100,500,10),
-                "kernel_sizes": hp.choice("kernel_sizes",[[1,2,3],[1,2],[2,3],[1,3]]),
-                "aspect_nums": 0,
-                "optimizer": hp.choice("optimizer",["adadelta",'adagrad','adam','adamax','asgd','rmsprop','sgd'])
-                }
+            params = dict(model_name="td_lstm", dataset="my-laptop",
+                          initializer=hp.choice("initializer", ["xavier_normal_", "xavier_uniform_", "orthogonal_"]),
+                          learning_rate=hp.loguniform("learning_rate", np.log(0.001), np.log(0.1)), num_epoch=100,
+                          batch_size=hp.quniform("batch_size", 16, 128, 2), embed_dim=300,
+                          hidden_dim=hp.quniform("hidden_dim", 100, 500, 10),
+                          max_seq_len=hp.quniform("max_seq_len", 10, 80, 1), polarity_dim=3, hops=3, plot_every=50,
+                          seed=1024, weight_decay=hp.loguniform("weight_decay", np.log(0.001), np.log(0.1)),
+                          fillter=hp.quniform("fillter", 100, 500, 10),
+                          kernel_sizes=hp.choice("kernel_sizes", [[1, 2, 3], [1, 2], [2, 3], [1, 3]]), aspect_nums=0,
+                          optimizer=hp.choice("optimizer",
+                                              ["adadelta", 'adagrad', 'adam', 'adamax', 'asgd', 'rmsprop', 'sgd']))
             params["model_name"] = m
             params["dataset"] = d
             params["out_file"] = out_file
@@ -279,8 +219,8 @@ def tiaocan():
 
 def result():
     params = {
-        "model_name": "ram",
-        "dataset": "my-restaurant",
+        "model_name": "cnn",
+        "dataset": "bylw",
         "initializer": "orthogonal_",
         "learning_rate": 0.005,
         "num_epoch": 100,
@@ -296,7 +236,8 @@ def result():
         "fillter": 390,
         "kernel_sizes": (2,3),
         "aspect_nums": 0,
-        "optimizer": 'adam'
+        "optimizer": 'adam',
+        "w2v":"cbow",
         }
     model_classes = {
         'lstm': LSTM,
@@ -348,12 +289,13 @@ def result():
     opt.optimizer = optimizers[opt.optimizer]
     opt.device = device
     ins = Instrutor(opt)
-    train_acc,test_acc,test_f1 = ins.run()
-    print("the train-acc is {0} the test-acc is {1} the test-f1 is {2}".format(train_acc, test_acc, test_f1))
+    test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur = ins.run()
+    # print("the train-acc is {0} the test-acc is {1} the test-f1 is {2}".format(train_acc, test_acc, test_f1))
 if __name__ == '__main__':
     # Hyper Parameters
-    tiaocan()
-    # result()
+    # tiaocan()
+    warnings.filterwarnings("ignore")
+    result()
 
     # model_classes = {
     #     'lstm': LSTM,

@@ -7,23 +7,28 @@ import time
 import re
 from string import punctuation
 # from nltk.stem import SnowballStemmer
-def load_word_vec(path,word2ix=None):
-	"""
-	载入预训练的词向量
-	:param path: pre-train的路径
-	:param word2index:
-	:return: {word:vec}
-	"""
-	readlines = open(path,'r',encoding="utf-8",newline="\n",errors="ignore")
-	word_vec = {}
-	for line in readlines:
-		tokens = line.rstrip().split()
-		if word2ix is None or tokens[0] in word2ix.keys():
-			word_vec[tokens[0]] = np.asarray(tokens[1:],dtype="float32")
-	return word_vec
+from gensim.models import KeyedVectors
+from gensim.models.word2vec import Word2Vec
+# def load_word_vec(path,word2ix=None):
+# 	"""
+# 	载入预训练的词向量
+# 	:param path: pre-train的路径
+# 	:param word2index:
+# 	:return: {word:vec}
+# 	"""
+# 	readlines = open(path,'r',encoding="utf-8",newline="\n",errors="ignore")
+# 	word_vec = {}
+# 	c = 0
+# 	for line in readlines:
+# 		if c > 1:
+# 			tokens = line.split()
+# 			if word2ix is None or tokens[0] in word2ix.keys():
+# 				word_vec[tokens[0]] = np.asarray(tokens[1:],dtype="float32")
+# 		c += 1
+# 	return word_vec
 
 
-def build_embedding_matrix(word2ix,embed_dim,type):
+def build_embedding_matrix(word2ix,embed_dim,type,fname):
 	"""
 	构建预训练的词向量
 	:param word2ix:
@@ -31,7 +36,7 @@ def build_embedding_matrix(word2ix,embed_dim,type):
 	:param type: 数据集的类型
 	:return:
 	"""
-	embedding_matrix_file_name = '../extra_data/{0}_{1}_embedding_matrix.dat'.format(str(embed_dim),type)
+	embedding_matrix_file_name = '../cache/{0}_{1}_embedding_matrix.dat'.format(str(embed_dim),type)
 	if os.path.exists(embedding_matrix_file_name):
 		# print("loading embedding matrix {0}:{1} ".format(embedding_matrix_file_name,
 		#                                                 time.strftime("%H:%M:%S",time.localtime(time.time()))))
@@ -39,15 +44,12 @@ def build_embedding_matrix(word2ix,embed_dim,type):
 	else:
 		# print("loading word vectors...")
 		embedding_matrix = 0.2 * np.random.random((len(word2ix) + 2,embed_dim)) - 0.1
-		fname = '../extra_data/glove.twitter.27B.' + \
-		        str(embed_dim) + "d.txt" if embed_dim != 300 else "../extra_data/glove.42B.300d.txt"
-		word_vec = load_word_vec(fname, word2ix)
+		word_vec = Word2Vec.load(fname)
 		# print("building embedding matrix {0}:{1}".format(embedding_matrix_file_name,
 		#                                                 time.strftime("%H:%M:%S",time.localtime(time.time()))))
 		for word, i in word2ix.items():
-			vec = word_vec.get(word)
-			if vec is not None :
-				embedding_matrix[i] = vec
+			if word in word_vec:
+				embedding_matrix[i] = word_vec[word]
 		pickle.dump(embedding_matrix, open(embedding_matrix_file_name,"wb"))
 	return embedding_matrix
 
