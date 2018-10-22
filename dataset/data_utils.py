@@ -5,6 +5,7 @@ import numpy as np
 import pickle
 from torch.utils.data import Dataset
 from utils.utils import build_embedding_matrix
+import jieba
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '2'  # 只显示 warning 和 Error
 
 class Tokenizer(object):
@@ -25,7 +26,7 @@ class Tokenizer(object):
 		:param text:
 		:return:
 		"""
-		words = text.split()
+		words = jieba.lcut(text)
 		for w in words:
 			if w not in self.word2ix:
 				self.word2ix[w] = self.ix
@@ -51,9 +52,7 @@ class Tokenizer(object):
 		return x
 	
 	def text_to_sequence(self,text,reverse=False):
-		if self.lower:
-			text = text.lower()
-		words = text.split()
+		words = jieba.lcut(text)
 		unknowix = len(self.word2ix) + 1
 		sequence = [self.word2ix[w] if w in self.word2ix else unknowix for w in words]
 		if len(sequence) == 0:
@@ -123,19 +122,29 @@ class ABSADatasetReader:
 		# print("the all data is {0}, the POS is {1}, the NEU is {2}, the NEG is {3}".format(len(all_data), pls.count(2),pls.count(1),pls.count(0)))
 		return all_data
 	
-	def __init__(self, dataset="bylw",embed_dim = 100, max_seq_len = 80):
+	def __init__(self, dataset="bylw",embed_dim = 300, max_seq_len = 80, w2v = "cbow"):
 		# print("preparing {0} dataset...".format(dataset))
 		fname = {
 			"bylw":{
 				"train": "../data_set/train.csv",
 				"valid":"../data_set/valid.csv",
 				"test": "../data_set/test.csv"
-				}
+				},
+			"w2v":{
+				"cbow":"../cache/w2v_cbow",
+				"skip_gram":"../cache/w2v_skip"
 			}
-		text = ABSADatasetReader.__read_text__(fname[dataset]["train"])
+			}
+		text_train = ABSADatasetReader.__read_text__(fname[dataset]["train"])
+		text_valid =ABSADatasetReader.__read_text__(fname[dataset]["valid"])
+		text_test = ABSADatasetReader.__read_text__(fname[dataset]["test"])
+		text = text_train + text_valid + text_test
 		tokenizer = Tokenizer(max_seq_len = max_seq_len)
 		tokenizer.fit_on_text(text)
-		self.embedding_matrix = build_embedding_matrix(tokenizer.word2ix, embed_dim,dataset)
+		if w2v == "cbow":
+			self.embedding_matrix = build_embedding_matrix(tokenizer.word2ix, embed_dim, dataset,fname["w2v"]["cbow"])
+		else:
+			self.embedding_matrix = build_embedding_matrix(tokenizer.word2ix, embed_dim, dataset, fname["w2v"]["skip_gram"])
 		if dataset in ["my-laptop","my-restaurants"]:
 			self.train_data = ABSADataset(ABSADatasetReader.__read_data__(fname[dataset]["train"],tokenizer))
 			self.test_data = ABSADataset(ABSADatasetReader.__read_data__(fname[dataset]["test"], tokenizer))
