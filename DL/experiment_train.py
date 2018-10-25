@@ -97,16 +97,18 @@ class Instrutor:
                 loss = criterion(outputs,targets)
                 loss.backward()
                 optimizer.step()
+                # print(i_batch ,loss)
             # early stop in 10
             val_acc,_,_,_ = self.val(self.model,self.valid_data_loader)
             train_acc,_,_,_ = self.val(self.model,self.train_data_loader)
-            if epoch_count % 1 == 0:
+            if epoch_count % 5 == 0:
                 test_acc,test_f1, test_precise, test_recall = self.val(self.model,self.test_data_loader)
                 print("the train acc is {0}, the val acc is {1}, the test acc is {2}".format(train_acc,val_acc,test_acc))
+            test_acc,test_f1, test_precise, test_recall = self.val(self.model, self.test_data_loader)
             if val_acc > curMax:
                 curMax = val_acc
                 train_cur, val_cur = train_acc, val_acc
-                # test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur = test_f1, test_precise, test_recall,test_acc
+                test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur = test_f1, test_precise, test_recall,test_acc
                 count = 0
                 # model_name = self.model.save()
             else:
@@ -116,7 +118,7 @@ class Instrutor:
         del self.model
         del self.opt
         gc.collect()
-        print("the train acc is {0}, the val acc is {1}, the test acc is {2}".format(train_cur,curMax,test_cur))
+        print("the train acc is {0}, the val acc is {1}, the test acc is {2}".format(train_cur,curMax,test_acc_cur))
         return test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur
 
 def obejective(params):
@@ -218,79 +220,81 @@ def tiaocan():
             print("the model is {0} the mean test-acc is {1} the mean test-f1 is {2}".format(m,np.mean(np.array(result), axis=0), np.mean(np.array(result_f1))))
 
 def result():
-    params = {
-        "model_name": "cnn",
-        "dataset": "bylw",
-        "initializer": "orthogonal_",
-        "learning_rate": 0.005,
-        "num_epoch": 100,
-        "batch_size": 64,
-        "embed_dim": 300,
-        "hidden_dim": 150,
-        "max_seq_len": 55,
-        "polarity_dim": 3,
-        "hops": 3,
-        "plot_every": 50,
-        "seed": 42,
-        "weight_decay": 0.001,
-        "fillter": 390,
-        "kernel_sizes": (2,3),
-        "aspect_nums": 0,
-        "optimizer": 'adam',
-        "w2v":"cbow",
-        }
-    model_classes = {
-        'lstm': LSTM,
-        'td_lstm': TD_LSTM,
-        'ian': InterAttNet,
-        'memnet': DeepMemNet,
-        'ram': RAM,
-        'cabasc': CABASC,
-        'cnn': CNN_Gate_Aspect_Text,
-        'my': MYNETWork
-        }
-    input_colses = {
-        'lstm': ['text_raw_indices'],
-        'td_lstm': ['text_left_with_aspect_indices','text_right_with_aspect_indices'],
-        'ian': ['text_raw_indices','aspect_indices'],
-        'memnet': ['text_raw_without_aspect_indices','aspect_indices','text_left_with_aspect_indices'],
-        'ram': ['text_raw_indices','aspect_indices'],
-        'cabasc': ['text_raw_indices','aspect_indices','text_left_with_aspect_indices',
-                   'text_right_with_aspect_indices'],
-        'cnn': ['text_raw_indices','aspect_indices'],
-        'my': ['text_left_indices','text_right_indices','aspect_indices']
-        }
-    initializers = {
-        'xavier_uniform_': torch.nn.init.xavier_uniform_,
-        'xavier_normal_': torch.nn.init.xavier_normal,
-        'orthogonal_': torch.nn.init.orthogonal_,
-        }
-    optimizers = {
-        'adadelta': torch.optim.Adadelta,  # default lr=1.0
-        'adagrad': torch.optim.Adagrad,  # default lr=0.01
-        'adam': torch.optim.Adam,  # default lr=0.001
-        'adamax': torch.optim.Adamax,  # default lr=0.002
-        'asgd': torch.optim.ASGD,  # default lr=0.01
-        'rmsprop': torch.optim.RMSprop,  # default lr=0.01
-        'sgd': torch.optim.SGD,
-        }
-    parser = argparse.ArgumentParser()
-    opt = parser.parse_args()
-    for k,v in params.items():
-        if k in ['batch_size','hidden_dim','max_seq_len','fillter']:
-            v = int(v)
-        setattr(opt,k,v)
-    torch.manual_seed(opt.seed)
-    torch.cuda.manual_seed(opt.seed)
-    np.random.seed(opt.seed)
-    opt.model_classes = model_classes[opt.model_name]
-    opt.inputs_cols = input_colses[opt.model_name]
-    opt.initializer = initializers[opt.initializer]
-    opt.optimizer = optimizers[opt.optimizer]
-    opt.device = device
-    ins = Instrutor(opt)
-    test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur = ins.run()
-    # print("the train-acc is {0} the test-acc is {1} the test-f1 is {2}".format(train_acc, test_acc, test_f1))
+    for m in ["ian","ram","cnn","my"]:
+        print("--------------------%s-------------------"%m)
+        params = {
+            "model_name": m,
+            "dataset": "bylw",
+            "initializer": "xavier_uniform_",
+            "learning_rate": 0.005,
+            "num_epoch": 100,
+            "batch_size": 64,
+            "embed_dim": 300,
+            "hidden_dim": 50,
+            "max_seq_len": 55,
+            "polarity_dim": 3,
+            "hops": 3,
+            "plot_every": 50,
+            "seed": 42,
+            "weight_decay": 0.001,
+            "fillter": 390,
+            "kernel_sizes": (2,3),
+            "aspect_nums": 0,
+            "optimizer": 'adam',
+            "w2v":"cbow",
+            }
+        model_classes = {
+            'lstm': LSTM,
+            'td_lstm': TD_LSTM,
+            'ian': InterAttNet,
+            'memnet': DeepMemNet,
+            'ram': RAM,
+            'cabasc': CABASC,
+            'cnn': CNN_Gate_Aspect_Text,
+            'my': MYNETWork
+            }
+        input_colses = {
+            'lstm': ['text_raw_indices'],
+            'td_lstm': ['text_left_with_aspect_indices','text_right_with_aspect_indices'],
+            'ian': ['text_raw_indices','aspect_indices'],
+            'memnet': ['text_raw_without_aspect_indices','aspect_indices','text_left_with_aspect_indices'],
+            'ram': ['text_raw_indices','aspect_indices'],
+            'cabasc': ['text_raw_indices','aspect_indices','text_left_with_aspect_indices',
+                       'text_right_with_aspect_indices'],
+            'cnn': ['text_raw_indices','aspect_indices'],
+            'my': ['text_left_indices','text_right_indices','aspect_indices']
+            }
+        initializers = {
+            'xavier_uniform_': torch.nn.init.xavier_uniform_,
+            'xavier_normal_': torch.nn.init.xavier_normal,
+            'orthogonal_': torch.nn.init.orthogonal_,
+            }
+        optimizers = {
+            'adadelta': torch.optim.Adadelta,  # default lr=1.0
+            'adagrad': torch.optim.Adagrad,  # default lr=0.01
+            'adam': torch.optim.Adam,  # default lr=0.001
+            'adamax': torch.optim.Adamax,  # default lr=0.002
+            'asgd': torch.optim.ASGD,  # default lr=0.01
+            'rmsprop': torch.optim.RMSprop,  # default lr=0.01
+            'sgd': torch.optim.SGD,
+            }
+        parser = argparse.ArgumentParser()
+        opt = parser.parse_args()
+        for k,v in params.items():
+            if k in ['batch_size','hidden_dim','max_seq_len','fillter']:
+                v = int(v)
+            setattr(opt,k,v)
+        torch.manual_seed(opt.seed)
+        torch.cuda.manual_seed(opt.seed)
+        np.random.seed(opt.seed)
+        opt.model_classes = model_classes[opt.model_name]
+        opt.inputs_cols = input_colses[opt.model_name]
+        opt.initializer = initializers[opt.initializer]
+        opt.optimizer = optimizers[opt.optimizer]
+        opt.device = device
+        ins = Instrutor(opt)
+        test_f1_cur, test_precise_cur, test_recall_cur, test_acc_cur = ins.run()
+        print("the test recall is {0} the test-precise is {1} the test-f1 is {2}".format(test_recall_cur, test_precise_cur, test_f1_cur))
 if __name__ == '__main__':
     # Hyper Parameters
     # tiaocan()

@@ -36,6 +36,14 @@ class Attention(nn.Module):
 			self.weight = nn.Parameter(torch.Tensor(hidden_dim,hidden_dim))
 		else:
 			self.register_parameter("weight",None)
+		self.reset_parameters()
+	def reset_parameters(self):
+		stdv = 1. / math.sqrt(self.weight.size(0))
+		self.weight.data.uniform_(-stdv, stdv)
+		qx_stdv = 1. / math.sqrt(self.w_qx.size(0))
+		self.w_qx.data.uniform_(-qx_stdv, qx_stdv)
+		wx_stdv = 1. / math.sqrt(self.w_kx.size(0))
+		self.w_kx.data.uniform_(-wx_stdv, wx_stdv)
 	
 	def forward(self,k,q):
 		if len(q.shape) == 2:

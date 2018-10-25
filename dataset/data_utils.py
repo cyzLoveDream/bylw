@@ -119,7 +119,7 @@ class ABSADatasetReader:
 		pls = []
 		for i in all_data:
 			pls.append(i.get("polarity"))
-		# print("the all data is {0}, the POS is {1}, the NEU is {2}, the NEG is {3}".format(len(all_data), pls.count(2),pls.count(1),pls.count(0)))
+		print("the all data is {0}, the POS is {1}, the NEU is {2}, the NEG is {3}".format(len(all_data), pls.count(2),pls.count(1),pls.count(0)))
 		return all_data
 	
 	def __init__(self, dataset="bylw",embed_dim = 300, max_seq_len = 80, w2v = "cbow"):

@@ -8,7 +8,7 @@ import jieba
 jieba.load_userdict("../raw_data/user_dict.txt")
 from gensim.models.word2vec import Word2Vec
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = '2'  # 只显示 warning 和 Error
-model = Word2Vec.load("../cache/w2v_cbow")
+model = Word2Vec.load("../cache/w2v_skip")
 
 class Tokenizer(object):
     """
